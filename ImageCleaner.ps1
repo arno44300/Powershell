@@ -1,16 +1,18 @@
-﻿do {
+﻿Add-Type -AssemblyName System.Drawing
+
+do {
     Clear-Host
     write-host "    ____    __  ___    ___    ______    ______          ______    __     ______    ___     _   __    ______    ____ 
    /  _/   /  |/  /   /   |  / ____/   / ____/         / ____/   / /    / ____/   /   |   / | / /   / ____/   / __ \
    / /    / /|_/ /   / /| | / / __    / __/           / /       / /    / __/     / /| |  /  |/ /   / __/     / /_/ /
- _/ /    / /  / /   / ___ |/ /_/ /   / /___          / /___    / /___ / /___    / ___ | / /|  /   / /___    / _, _/ 
+ _/ /    / /  / /   / ___ |/ /_/ /   / /___          / /___    / /___ / /___    / ___ | / /|  /   / /___    / _  _/ 
 /___/   /_/  /_/   /_/  |_|\____/   /_____/          \____/   /_____//_____/   /_/  |_|/_/ |_/   /_____/   /_/ |_|"
 
 write-host ""
 
-#Definition des constantes
-$tailleMin = 1000KB
-$hauteurMin = 1600
+# Definition des constantes
+$tailleMin = 100KB
+$hauteurMin = 1400
 
 do {
     $nom = Read-Host "Entrer le nom [0 pour quitter]"
@@ -34,9 +36,8 @@ if ($nom -ne "0") {
     $files = Get-ChildItem $chemin
 
     foreach ($file in $files) {
-        if ($file | Where-Object {
-            ($_.Extension -match ".jpg|.jpeg|.png|.webp|.jfif" -and $_.Length -lt $tailleMin) -or
-            ($_.Extension -notmatch ".jpg|.jpeg|.png|.webp|.jfif")}){
+        if ($file | Where-Object {($_.Extension -notmatch ".jpg|.png|.webp|.jfif" -or $_.Length -lt $tailleMin)})
+            {
                 Remove-Item -Path $file.FullName -Force -Verbose 
             }
          else{
@@ -51,21 +52,21 @@ if ($nom -ne "0") {
 
     $files = Get-ChildItem $chemin
    
-    # Supprimer les fichiers en double (même taille et dimensions)
+    # Supprimer les fichiers en double (même taille en KB et dimensions)
     $filesToDelete = @{}
     
     foreach ($file in $files) {
-        $size = $file.Length
+        $sizeInBytes = $file.Length
+        $sizeInKB = [math]::Round($sizeInBytes / 1024)
         $dimensions = "$($image.Width) x $($image.Height)"
     
-        $fileKey = "${size}_${dimensions}"
+        $fileKey = "${sizeInKB}KB_${dimensions}"
         if ($filesToDelete.ContainsKey($fileKey)) {
             $filesToDelete[$fileKey] += @($file)
-           }
-       else {
+        } else {
             $filesToDelete[$fileKey] = @($file)
-            }
-       }
+    }
+}
     
     foreach ($key in $filesToDelete.Keys) {
         $filesToDelete[$key] | Select-Object -Skip 1 | ForEach-Object {
@@ -83,6 +84,6 @@ if ($nom -ne "0") {
     }
 
     Rename-Item -Path $chemin -NewName $nom -Force -Verbose
-
     }
+
 } while ($nom -ne "0")
