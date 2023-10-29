@@ -1,27 +1,65 @@
 ﻿Add-Type -AssemblyName System.Drawing
 
-do {
+for(;;) {
     Clear-Host
-    write-host "    ____    __  ___    ___    ______    ______          ______    __     ______    ___     _   __    ______    ____ 
-   /  _/   /  |/  /   /   |  / ____/   / ____/         / ____/   / /    / ____/   /   |   / | / /   / ____/   / __ \
-   / /    / /|_/ /   / /| | / / __    / __/           / /       / /    / __/     / /| |  /  |/ /   / __/     / /_/ /
- _/ /    / /  / /   / ___ |/ /_/ /   / /___          / /___    / /___ / /___    / ___ | / /|  /   / /___    / _  _/ 
-/___/   /_/  /_/   /_/  |_|\____/   /_____/          \____/   /_____//_____/   /_/  |_|/_/ |_/   /_____/   /_/ |_|"
+    write-host "
+    ______  ______   ____________   ________    _________    _   ____________ 
+   /  _/  |/  /   | / ____/ ____/  / ____/ /   / ____/   |  / | / / ____/ __ \
+   / // /|_/ / /| |/ / __/ __/    / /   / /   / __/ / /| | /  |/ / __/ / /_/ /
+ _/ // /  / / ___ / /_/ / /___   / /___/ /___/ /___/ ___ |/ /|  / /___/ _, _/ 
+/___/_/  /_/_/  |_\____/_____/   \____/_____/_____/_/  |_/_/ |_/_____/_/ |_|  
+                                                                                                                                                               
+"
+    write-host ""
 
-write-host ""
+    # Definition des constantes
+    $tailleMin = 100KB
+    $hauteurMin = 1400
 
-# Definition des constantes
-$tailleMin = 100KB
-$hauteurMin = 1400
+    function PoserQuestion{
+    param([string]$question,
+          [string]$defaut = 0)
+        for(;;){
+            $saisie = Read-Host "$question"
+            if($defaut -ne "0" -and $saisie -eq ""){$saisie = $defaut}
+            if($saisie -ne ""){return $saisie} 
+        }     
+    }
 
-do {
-    $nom = Read-Host "Entrer le nom [0 pour quitter]"
-} while ([string]::IsNullOrWhiteSpace($nom))
+    function VerifierChemin{
+    param([string]$chemin)
+        if(Test-Path "$chemin"){
+            return $true
+        }
+        Write-Host "ERREUR : Entrer un chemin valide" -ForegroundColor red
+    
+    }
 
-if ($nom -ne "0") {
-    do {
-        $chemin = Read-Host "Entrer le chemin du dossier à traiter"
-    } while (![System.IO.Directory]::Exists($chemin))
+    function EntrerChemin{
+    param([string]$question)
+        do{
+            $saisie = PoserQuestion "$question"
+            if("$saisie" -eq "0"){            
+                break
+            }
+        }while(-not (VerifierChemin "$saisie"))
+        return $saisie
+    }
+    
+    function RecupererNomDossier {
+    param ([string]$chemin)
+    $segments = $chemin -split '\\'
+    return $segments[-1]
+    } 
+
+    $chemin = EntrerChemin "Entrer le chemin du dossier à traiter [0 pour quitter]"
+    $nom = RecupererNomDossier $chemin
+
+    if ($chemin -eq "0") {
+        exit
+    }
+    
+    $nom = PoserQuestion "Entrer le nom [Entrer pour $nom]" "$nom"
 
     # Mettre tous les fichiers des sous-dossiers dans le dossier courant
     $subFolders = Get-ChildItem -Path $chemin -Directory
@@ -63,10 +101,11 @@ if ($nom -ne "0") {
         $fileKey = "${sizeInKB}KB_${dimensions}"
         if ($filesToDelete.ContainsKey($fileKey)) {
             $filesToDelete[$fileKey] += @($file)
-        } else {
+        } 
+        else {
             $filesToDelete[$fileKey] = @($file)
+        }
     }
-}
     
     foreach ($key in $filesToDelete.Keys) {
         $filesToDelete[$key] | Select-Object -Skip 1 | ForEach-Object {
@@ -75,15 +114,19 @@ if ($nom -ne "0") {
     }
 
     # Trier par taille décroissante et renommer
-    $files = Get-ChildItem $chemin | Sort-Object -Property Length -Descending
-    
+    $files = Get-ChildItem $chemin | Sort-Object -Property Length -Descending  
+    $prenommer = $true
     for ($i = 0; $i -lt $files.Count; $i++) {
+        if($prenommer){
+            for ($j = 0; $j -lt $files.Count; $j++) {
+                $extension = $files[$j].Extension
+                Rename-Item -Path $files[$j].FullName -NewName "temp$($j + 1)$extension" -Force -Verbose
+            }
+            $files = Get-ChildItem $chemin | Sort-Object -Property Length -Descending
+            $prenommer = $false
+        }
         $extension = $files[$i].Extension
-        $nouveauNom = "${nom}$($i + 1)$extension"
-        Rename-Item -Path $files[$i].FullName -NewName $nouveauNom -Force -Verbose
+        Rename-Item -Path $files[$i].FullName -NewName "${nom}$($i + 1)$extension" -Force -Verbose    
     }
-
-    Rename-Item -Path $chemin -NewName $nom -Force -Verbose
-    }
-
-} while ($nom -ne "0")
+    Rename-Item -Path $chemin -NewName $nom -Force -Verbose   
+}
