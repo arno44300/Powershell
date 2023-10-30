@@ -31,8 +31,7 @@ for(;;) {
         if(Test-Path "$chemin"){
             return $true
         }
-        Write-Host "ERREUR : Entrer un chemin valide" -ForegroundColor red
-    
+        Write-Host "ERREUR : Entrer un chemin valide" -ForegroundColor red   
     }
 
     function EntrerChemin{
@@ -84,7 +83,7 @@ for(;;) {
              $image.Dispose()
              if ($height -lt $hauteurMin) {
                 Remove-Item $file.FullName -Force -Verbose
-                }
+             }
          }
     }
 
@@ -128,5 +127,7 @@ for(;;) {
         $extension = $files[$i].Extension
         Rename-Item -Path $files[$i].FullName -NewName "${nom}$($i + 1)$extension" -Force -Verbose    
     }
-    Rename-Item -Path $chemin -NewName $nom -Force -Verbose   
+    if((Split-Path $chemin -Leaf) -ne $nom){
+        Rename-Item -Path $chemin -NewName $nom -Force -Verbose
+    }
 }
