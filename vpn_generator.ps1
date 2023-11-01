@@ -184,17 +184,23 @@ param($question,
     for(;;){
         $saisie = PoserQuestion "$question"
         if(ValiderAdresseCIDR $saisie){
-            if($adresseAVTI -ne 0 -and $adresseAVTI -eq $saisie){
-                Write-Host "ERREUR : Cette adresse ip est déja utilisé" -ForegroundColor red
-            }
+            if($adresseAVTI -eq 0){return $saisie}
             else{
-                return $saisie
-            }      
+                $netmaskAVTI = Recuperer3DerniersCaractes $adresseAVTI
+                $netmaskBVTI = Recuperer3DerniersCaractes $saisie
+                if($adresseAVTI -eq $saisie){
+                    Write-Host "ERREUR : Cette adresse ip est déja utilisé" -ForegroundColor red
+                }
+                elseif($netmaskAVTI -ne $netmaskBVTI){
+                    Write-Host "ERREUR : L'adresse doit avoir le masque $netmaskAVTI" -ForegroundColor red
+                }
+                else{return $saisie}
+            }
         }
         else{
             Write-Host "ERREUR : Veuillez entrer une adresse ip valide [exemple : 192.168.1.0/24]" -ForegroundColor red     
         }
-    }    
+    }   
 }
 
 function ObtenirAdresseIP {
@@ -213,13 +219,22 @@ param($question,
             if($adresseA -ne 0 -and $adresseA -eq $saisie){
                 Write-Host "ERREUR : Cette adresse ip est déja utilisé" -ForegroundColor red
             }
-            else{
-                return $saisie
-            }    
+            else{return $saisie}    
         }
         else{
             Write-Host "ERREUR : Veuillez entrer une adresse ip valide" -ForegroundColor red
         }
+    }
+}
+
+function ObtenirInterface{
+param([string]$question)
+    for(;;){
+        $saisie = PoserQuestion "$question"
+        if(ValiderAdresseIP $saisie){
+            Write-Host "ERREUR : Veuillez entrer une interface valide" -ForegroundColor red
+        }
+        else{return $saisie}
     }
 }
 
@@ -247,6 +262,14 @@ function ValiderAdresseIP {
 #*****Initialisation des variables*****
 $interfaceA = $null
 $interfaceB = $null
+$adresseA = $null
+$adresseB = $null
+$adresseFinalA = $null
+$adresseFinalB = $null
+$adresseAVTI = $null
+$adresseBVTI = $null
+$adresseFinalAVTI = $null
+$adresseFinalBVTI = $null
 
 #******demarrage******
 Presentation
@@ -266,26 +289,21 @@ if($choix -eq "1" -or $choix -eq "3"){
 if($choix -eq "2" -or $choix -eq "3"){   
     $adresseAVTI = ObtenirAdresseCIDR "Entrer l'adresse VTI CIDR cote A" 
 }
-
-if($choix -eq "1" -or $choix -eq "3"){
-    $adresseA = ObtenirAdresseCIDR "Entrer l'adresse reseau CIDR du LAN cote A"     
-    $interfaceA = PoserQuestion "Entrer l'interface de sortie cote A"
+$adresseA = ObtenirAdresseCIDR "Entrer l'adresse reseau CIDR du LAN cote A"
+if($choix -eq "1" -or $choix -eq "3"){        
+    $interfaceA = ObtenirInterface "Entrer l'interface de sortie cote A"
 }
-
 $adresseSortieA = ObtenirAdresseIP "Enter l'adresse ip de sortie cote A" $interfaceA
-
 write-host ""
 
 #*****COTE B*****
 if($choix -eq "2" -or $choix -eq "3"){   
     $adresseBVTI = ObtenirAdresseCIDR "Entrer l'adresse VTI CIDR cote B" $adresseAVTI
 }
-
-if($choix -eq "1" -or $choix -eq "3"){
-    $adresseB = ObtenirAdresseCIDR "Entrer l'adresse reseau CIDR du LAN cote B"     
-    $interfaceB = PoserQuestion "Entrer l'interface de sortie cote B"
+$adresseB = ObtenirAdresseCIDR "Entrer l'adresse reseau CIDR du LAN cote B"
+if($choix -eq "1" -or $choix -eq "3"){        
+    $interfaceB = ObtenirInterface "Entrer l'interface de sortie cote B"
 }
-
 $adresseSortieB = ObtenirAdresseIP "Enter l'adresse ip de sortie cote B" $interfaceB $adresseSortieA
 
 #*****Calcul*****
@@ -296,8 +314,11 @@ $netmaskBVTI = Recuperer3DerniersCaractes $adresseBVTI
 
 $wildcardA = RecupererWildcard $netmaskA
 $wildcardB = RecupererWildcard $netmaskB
-$MasqueA = RecupererMasque $netmaskAVTI
-$MasqueB = RecupererMasque $netmaskBVTI
+
+$MasqueA = RecupererMasque $netmaskA
+$MasqueB = RecupererMasque $netmaskB
+$MasqueVTIA = RecupererMasque $netmaskAVTI
+$MasqueVTIB = RecupererMasque $netmaskBVTI
 
 $adresseFinalA = Supprimer3DerniersCaracteres $adresseA
 $adresseFinalB = Supprimer3DerniersCaracteres $adresseB
@@ -311,7 +332,7 @@ Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "conf t"
 if($choix -eq "2" -or $choix -eq "3"){
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "interface tunnel 1"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "tunnel mode gre ip"
-    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip address $adresseFinalAVTI $MasqueA"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip address $adresseFinalAVTI $MasqueVTIA"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "tunnel source $adresseSortieA"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "tunnel destination $adresseSortieB"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
@@ -326,18 +347,28 @@ if($choix -eq "1" -or $choix -eq "3"){
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "crypto isakmp key $cle address $adresseSortieB"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "crypto ipsec transform-set RAtoRB esp-aes esp-sha256-hmac"
-    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "access-list 100 permit ip $adresseFinalA $wildcardA $adresseFinalB $wildcardB"
-    if($choix -eq "3"){
-        Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "access-list 100 permit gre any any"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "mode transport"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip access-list extended VPN-LIST"
+    if($choix -eq "1"){
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip $adresseFinalA $wildcardA $adresseFinalB $wildcardB"
     }
+    if($choix -eq "3"){
+        Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "permit gre any any"
+    }
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "crypto map RAMAP $numeroPolicy ipsec-isakmp"
-    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "match address 100"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "match address VPN-LIST"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "set peer $adresseSortieB"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "set transform-set RAtoRB"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "set security-association lifetime seconds $lifetime"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "int $interfaceA"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "crypto map RAMAP"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
+}
+if($choix -eq "2" -or $choix -eq "3"){
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip route $adresseFinalB $MasqueB $adresseFinalBVTI"
 }
 
 Add-Content C:\Users\$env:USERNAME\Desktop\config.txt ""
@@ -347,7 +378,7 @@ Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "conf t"
 if($choix -eq "2" -or $choix -eq "3"){
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "interface tunnel 1"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "tunnel mode gre ip"
-    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip address $adresseFinalBVTI $MasqueB"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip address $adresseFinalBVTI $MasqueVTIB"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "tunnel source $adresseSortieB"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "tunnel destination $adresseSortieA"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
@@ -362,18 +393,28 @@ if($choix -eq "1" -or $choix -eq "3"){
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "crypto isakmp key $cle address $adresseSortieA"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "crypto ipsec transform-set RBtoRA esp-aes esp-sha256-hmac"
-    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "access-list 100 permit ip $adresseFinalB $wildcardB $adresseFinalA $wildcardA"
-        if($choix -eq "3"){
-        Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "access-list 100 permit gre any any"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "mode transport"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip access-list extended VPN-LIST"
+    if($choix -eq "1"){
+        Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip $adresseFinalA $wildcardA $adresseFinalB $wildcardB"
     }
+    if($choix -eq "3"){
+        Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "permit gre any any"
+    }
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "crypto map RBMAP $numeroPolicy ipsec-isakmp"
-    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "match address 100"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "match address VPN-LIST"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "set peer $adresseSortieA"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "set transform-set RBtoRA"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "set security-association lifetime seconds $lifetime"
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "int $interfaceB"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "crypto map RBMAP"
     Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "exit"
+}
+if($choix -eq "2" -or $choix -eq "3"){
+    Add-Content C:\Users\$env:USERNAME\Desktop\config.txt "ip route $adresseFinalA $MasqueA $adresseFinalAVTI"
 }
 
 Write-Host ""
